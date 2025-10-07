@@ -47,22 +47,30 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
     emb_str = "[" + ",".join([str(x) for x in query_embedding]) + "]"
 
     # Raw SQL query using pgvector distance operator <=> (cosine distance)
-    sql = f"""
-        SELECT *, embedding <=> '{emb_str}'::vector AS distance
-        FROM embeddingsnew
-        WHERE "user_id" = '{userId}' AND "account_id" = '{accountId}'
-        ORDER BY distance
-        LIMIT {top_k};
-    """
+    # sql = f"""
+    #     SELECT *, embedding <=> '{emb_str}'::vector AS distance
+    #     FROM embeddingsnew
+    #     WHERE "user_id" = '{userId}' AND "account_id" = '{accountId}'
+    #     ORDER BY distance
+    #     LIMIT {top_k};
+    # """
 
-    # Execute raw SQL
-    res = supabase.table("embeddingsnew") \
-    .select("*") \
-    .eq("user_id", userId) \
-    .eq("account_id", accountId) \
-    .execute()
+    # # Execute raw SQL
+    # res = supabase.table("embeddingsnew") \
+    # .select("*") \
+    # .eq("user_id", userId) \
+    # .eq("account_id", accountId) \
+    # .execute()
+    res = supabase.rpc(
+        "match_embeddings",
+        {
+            "query_embedding": query_embedding,
+            "user_id": userId,
+            "account_id": accountId,
+            "top_k": top_k
+        }
+    ).execute()
 
-    #res = supabase.rpc("sql", {"query": sql}).execute()
     if res.error:
         raise Exception(f"Supabase query failed: {res.error}")
     return res.data
