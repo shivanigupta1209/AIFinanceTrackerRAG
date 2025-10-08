@@ -71,9 +71,12 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
         }
     ).execute()
 
-    if res.error:
-        raise Exception(f"Supabase query failed: {res.error}")
-    return res.data
+    if hasattr(res, "error") and res.error:
+        raise Exception(f"Supabase RPC error: {res.error}")
+    if isinstance(res, dict) and "error" in res and res["error"]:
+        raise Exception(f"Supabase RPC error: {res['error']}")
+    data = res.data
+    return data
 
 # -------------------------------
 # 5️⃣ FastAPI endpoint
