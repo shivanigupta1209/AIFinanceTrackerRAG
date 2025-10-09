@@ -5,7 +5,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import numpy as np
 from embeddingCreation import get_gemini_embedding  # your embedding function
-
+from llmResponse import get_llm_answer, build_context_from_records  # your LLM function
 # -------------------------------
 # 1️⃣ Load environment variables
 # -------------------------------
@@ -103,12 +103,15 @@ async def retrieve(request: Request):
         # 2️⃣ Get top-K embeddings from Supabase
         top_docs = match_documents_online(query_embedding, userId, accountId, top_k=top_k)
 
-        return {
+        records= {
             "query": query,
             "userId": userId,
             "accountId": accountId,
             "top_k_results": top_docs
         }
+        answer = get_llm_answer(query, top_docs)
+        print("LLM Answer:", answer)
+        return records
 
     except Exception as e:
         return {"status": "❌ error", "error": str(e)}
