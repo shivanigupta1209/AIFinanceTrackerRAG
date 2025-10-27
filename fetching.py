@@ -5,7 +5,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import numpy as np
 from embeddingCreation import get_gemini_embedding  # your embedding function
-from llmResponse import get_llm_answer, build_context_from_records  # your LLM function
+from llmResponse import get_llm_answer, build_context_from_records, classify_query_intent, generate_sql_from_query  # your LLM function
 # -------------------------------
 # 1️⃣ Load environment variables
 # -------------------------------
@@ -81,12 +81,9 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
 # -------------------------------
 # 5️⃣ FastAPI endpoint
 # -------------------------------
+
 @app.post("/retrieve")
 async def retrieve(request: Request):
-    """
-    Input JSON: {"query": "text to search", "userId": "...", "accountId": "...", "top_k": 5}
-    Returns top-K matched embeddings from Supabase filtered by user/account.
-    """
     data = await request.json()
     query = data.get("query")
     userId = data.get("userId")
@@ -97,28 +94,102 @@ async def retrieve(request: Request):
         return {"status": "❌ Missing required fields: query, userId, accountId"}
 
     try:
-        # 1️⃣ Embed the query
+        # Step 0️⃣: Let Gemini classify the intent
+        intent = classify_query_intent(query)
+        print(f"Detected intent: {intent}")
+
+        # Step 1️⃣: Analytical route
+        if intent == "analytical":
+            sql_query = generate_sql_from_query(query, table_name="transactions")
+
+            # Ensure filters for user/account
+            # if "where" in sql_query.lower():
+            #     sql_query += f" AND userId = '{userId}' AND accountId = '{accountId}'"
+            # else:
+            #     sql_query += f" WHERE userId = '{userId}' AND accountId = '{accountId}'"
+
+            print("Generated SQL:", sql_query)
+
+            # Execute query
+            sql_uery = sql_query.strip().rstrip(';')
+            if not sql_query.lower().startswith("select"):
+                raise ValueError("Only SELECT queries are allowed.")
+
+            payload = {
+                "query": sql_query,
+                "user_id": user_id,
+                "account_id": account_id,
+            }
+
+            result = supabase.rpc("execute_sql", payload).execute()
+            if result.error:
+                raise Exception(result.error)
+            # return result.data
+            # sql_response = supabase.rpc("execute_sql", {"query": sql_query}).execute()
+            # result = sql_response.data if hasattr(sql_response, "data") else sql_response
+
+            return {
+                "mode": "analytical",
+                "query": query,
+                "sql_query": sql_query,
+                "result": result
+            }
+
+        # Step 2️⃣: Semantic route
         query_embedding = get_gemini_embedding(query, dim=384)
-
-        # 2️⃣ Get top-K embeddings from Supabase
         top_docs = match_documents_online(query_embedding, userId, accountId, top_k=top_k)
+        answer = get_llm_answer(query, top_docs)
 
-        records= {
+        print("llm answer: \n", answer)
+
+        return {
+            "mode": "semantic",
             "query": query,
-            "userId": userId,
-            "accountId": accountId,
+            "answer": answer,
             "top_k_results": top_docs
         }
-        answer = get_llm_answer(query, top_docs)
-        print("LLM Answer:", answer)
-        return records
 
     except Exception as e:
         return {"status": "❌ error", "error": str(e)}
 
+# @app.post("/retrieve")
+# async def retrieve(request: Request):
+#     """
+#     Input JSON: {"query": "text to search", "userId": "...", "accountId": "...", "top_k": 5}
+#     Returns top-K matched embeddings from Supabase filtered by user/account.
+#     """
+#     data = await request.json()
+#     query = data.get("query")
+#     userId = data.get("userId")
+#     accountId = data.get("accountId")
+#     top_k = data.get("top_k", 5)
+
+#     if not query or not userId or not accountId:
+#         return {"status": "❌ Missing required fields: query, userId, accountId"}
+
+#     try:
+#         # 1️⃣ Embed the query
+#         query_embedding = get_gemini_embedding(query, dim=384)
+
+#         # 2️⃣ Get top-K embeddings from Supabase
+#         top_docs = match_documents_online(query_embedding, userId, accountId, top_k=top_k)
+
+#         records= {
+#             "query": query,
+#             "userId": userId,
+#             "accountId": accountId,
+#             "top_k_results": top_docs
+#         }
+#         answer = get_llm_answer(query, top_docs)
+#         print("LLM Answer:", answer)
+#         return records
+
+    # except Exception as e:
+    #     return {"status": "❌ error", "error": str(e)}
+
 # -------------------------------
 # 6️⃣ Run locally
-# -------------------------------
+# -----------------------------
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
