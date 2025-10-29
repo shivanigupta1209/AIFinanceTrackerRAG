@@ -134,22 +134,28 @@ async def retrieve(request: Request):
             accountid = account_id
             payload = {
                 "query": sql_query,
-                "userid": userid,
-                "accountid": accountid,
+                "user_id": userid,
+                "account_id": accountid
             }
+            print("Calling execute_sql with payload:", payload)
+            exec_res = supabase.rpc("execute_sql_wrapper", payload).execute()
 
-            result = supabase.rpc("execute_sql", payload).execute()
-            if result.error:
-                raise Exception(result.error)
-            # return result.data
-            # sql_response = supabase.rpc("execute_sql", {"query": sql_query}).execute()
-            # result = sql_response.data if hasattr(sql_response, "data") else sql_response
+            # handle SingleAPIResponse object or plain dict
+            if isinstance(exec_res, dict):
+                err = exec_res.get("error")
+                data = exec_res.get("data")
+            else:
+                err = getattr(exec_res, "error", None)
+                data = getattr(exec_res, "data", None)
+
+            if err:
+                raise Exception(f"Supabase execute_sql RPC error: {err}")
 
             return {
                 "mode": "analytical",
                 "query": query,
                 "sql_query": sql_query,
-                "result": result
+                "result": data
             }
 
         # Step 2️⃣: Semantic route
