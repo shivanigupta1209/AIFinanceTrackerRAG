@@ -35,6 +35,18 @@ app = FastAPI(title="RAG Retrieval API")
 #     .eq("user_id", userId) \
 #     .eq("account_id", accountId) \
 #     .execute()
+def _sanitize_sql(sql: str) -> str:
+    """Remove markdown fences, language tags, trailing semicolon and whitespace."""
+    if not sql:
+        return ""
+    s = sql.strip()
+    # remove triple-backtick fences and optional language tag
+    s = s.replace("```sql", "").replace("```", "")
+    # remove any leading/trailing backticks left over
+    s = s.strip("` \n\r\t")
+    # remove trailing semicolon
+    s = s.rstrip().rstrip(";")
+    return s.strip()
 
 def match_documents_online(query_embedding, userId, accountId, top_k=5):
     """
@@ -86,11 +98,11 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
 async def retrieve(request: Request):
     data = await request.json()
     query = data.get("query")
-    userId = data.get("userId")
-    accountId = data.get("accountId")
+    user_id = data.get("userid")
+    account_id = data.get("accountid")
     top_k = data.get("top_k", 5)
 
-    if not query or not userId or not accountId:
+    if not query or not user_id or not account_id:
         return {"status": "❌ Missing required fields: query, userId, accountId"}
 
     try:
@@ -111,14 +123,19 @@ async def retrieve(request: Request):
             print("Generated SQL:", sql_query)
 
             # Execute query
-            sql_uery = sql_query.strip().rstrip(';')
+            #sql_query = sql_query.strip().rstrip(';')
+            sql_query = _sanitize_sql(sql_query)
+
+            # debug print to verify cleaned SQL
+            print("Sanitized SQL:", sql_query)
             if not sql_query.lower().startswith("select"):
                 raise ValueError("Only SELECT queries are allowed.")
-
+            userid = user_id
+            accountid = account_id
             payload = {
                 "query": sql_query,
-                "user_id": user_id,
-                "account_id": account_id,
+                "userid": userid,
+                "accountid": accountid,
             }
 
             result = supabase.rpc("execute_sql", payload).execute()
@@ -137,7 +154,7 @@ async def retrieve(request: Request):
 
         # Step 2️⃣: Semantic route
         query_embedding = get_gemini_embedding(query, dim=384)
-        top_docs = match_documents_online(query_embedding, userId, accountId, top_k=top_k)
+        top_docs = match_documents_online(query_embedding, user_id, account_id, top_k=top_k)
         answer = get_llm_answer(query, top_docs)
 
         print("llm answer: \n", answer)
