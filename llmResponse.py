@@ -67,35 +67,71 @@ Respond with only one word: analytical OR semantic.
     return "semantic"
 
 
+# def build_context_from_records(records):
+#     """
+#     Build a context string from the list of records fetched from the DB.
+#     Each record should have metadata with columns.
+#     """
+#     if not records:
+#         return "No relevant records found."
+    
+#     lines = ["RESPONSE:"]
+#     for rec in records:
+#         cols = rec.get("metadata", {}).get("columns", {})
+#         date = cols.get("date", "?")
+#         category = cols.get("category", "?")
+#         amount = cols.get("amount", "?")
+#         type_ = cols.get("type", "?")
+#         if type_ == "EXPENSE":
+#             lines.append(f"- {date}: {category}, ${amount}")
+#     return "\n".join(lines)
 def build_context_from_records(records):
     """
-    Build a context string from the list of records fetched from the DB.
-    Each record should have metadata with columns.
+    Convert list of record dictionaries into a clean, readable text format for the LLM.
     """
     if not records:
-        return "No relevant records found."
-    
-    lines = ["RESPONSE:"]
-    for rec in records:
-        cols = rec.get("metadata", {}).get("columns", {})
-        date = cols.get("date", "?")
-        category = cols.get("category", "?")
-        amount = cols.get("amount", "?")
-        type_ = cols.get("type", "?")
-        if type_ == "EXPENSE":
-            lines.append(f"- {date}: {category}, ${amount}")
-    return "\n".join(lines)
+        return "No records were found."
+
+    if isinstance(records, dict):
+        records = [records]
+
+    # Make a readable text version (like CSV-style)
+    context_lines = []
+    for i, rec in enumerate(records, 1):
+        if isinstance(rec, dict):
+            line = ", ".join(f"{k}: {v}" for k, v in rec.items())
+        else:
+            line = str(rec)
+        context_lines.append(f"Record {i}: {line}")
+
+    return "\n".join(context_lines)
+
 
 def get_llm_answer(user_query, records):
     """
     Generate LLM answer based on user query and records.
+    This prompt ensures Gemini uses the given data instead of refusing.
     """
     context = build_context_from_records(records)
+
     prompt = f"""
-User asked: "{user_query}"
+You are a helpful data analysis assistant.
+
+Below is a set of records retrieved from a financial transactions database.
+Use ONLY this data to answer the user's question.
+
+User question:
+{user_query}
+
+Database records:
 {context}
-Please answer the user's question based on this data.
+
+If the records show totals, averages, or other numeric summaries, 
+report them directly and clearly in natural language.
+Do not refuse to answer. Do not mention that you lack access to finances.
+Answer concisely and factually based on the given data.
 """
+
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
-    return response.text.strip() if hasattr(response, 'text') else str(response)
+    return response.text.strip() if hasattr(response, "text") else str(response)
