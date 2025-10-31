@@ -131,6 +131,7 @@ async def retrieve(request: Request):
 
             if err:
                 raise Exception(f"Supabase execute_sql RPC error: {err}")
+            
             result_rows = []
             if data is None:
                 result_rows = []
@@ -166,7 +167,7 @@ async def retrieve(request: Request):
                 "query": query,
                 "sql_query": sql_query,
                 "raw_result": result_rows,
-                "result": answer
+                "answer": answer
             }
 
         # Step 2️⃣: Semantic route
