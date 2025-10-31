@@ -98,8 +98,8 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
 async def retrieve(request: Request):
     data = await request.json()
     query = data.get("query")
-    user_id = data.get("userid")
-    account_id = data.get("accountid")
+    user_id = data.get("userid", "2896d2d5-915e-463b-85c5-fe1dcd141486")
+    account_id = data.get("accountid", "ba67685c-4878-4d5c-bb0f-75bcdb4c763b")
     top_k = data.get("top_k", 5)
 
     if not query or not user_id or not account_id:
