@@ -144,12 +144,13 @@ async def retrieve(request: Request):
 
             if err:
                 raise Exception(f"Supabase execute_sql RPC error: {err}")
+            answer = get_llm_answer(query, data)
 
             return {
                 "mode": "analytical",
                 "query": query,
                 "sql_query": sql_query,
-                "result": data
+                "result": answer
             }
 
         # Step 2️⃣: Semantic route
