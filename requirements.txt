@@ -4,4 +4,4 @@ supabase
 google-generativeai
 python-dotenv
 numpy
-supabase-py
+#supabase-py
