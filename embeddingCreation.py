@@ -21,13 +21,23 @@ genai.configure(api_key=GEMINI_API_KEY)
 def get_gemini_embedding(text, dim=384):
     try:
         result = genai.embed_content(
-            model="models/embedding-001",   # correct model name
+            model="gemini-embedding-001",   # correct model name
             content=text,
             task_type="retrieval_document", # recommended task type for RAG embeddings
             title="Embedding generation",
             output_dimensionality=dim       # if supported
         )
-        return result["embedding"]  # returns list of floats
+        if isinstance(result, dict) and "embedding" in result:
+            emb = result["embedding"]
+        elif hasattr(result, "embedding"):
+            emb = result.embedding
+        elif hasattr(result, "embeddings") and result.embeddings:
+            emb = result.embeddings[0].values
+        else:
+            raise ValueError("Unexpected embedding format received from Gemini API.")
+
+        return emb
+        #return result["embedding"]  # returns list of floats
     except Exception as e:
         print(f"⚠️ Gemini embedding failed: {e}")
         return []
