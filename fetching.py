@@ -1,4 +1,5 @@
 # retrieve.py
+import json
 import os
 from fastapi import FastAPI, Request
 from supabase import create_client, Client
@@ -58,21 +59,7 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
         query_embedding = query_embedding.tolist()
     emb_str = "[" + ",".join([str(x) for x in query_embedding]) + "]"
 
-    # Raw SQL query using pgvector distance operator <=> (cosine distance)
-    # sql = f"""
-    #     SELECT *, embedding <=> '{emb_str}'::vector AS distance
-    #     FROM embeddingsnew
-    #     WHERE "user_id" = '{userId}' AND "account_id" = '{accountId}'
-    #     ORDER BY distance
-    #     LIMIT {top_k};
-    # """
-
-    # # Execute raw SQL
-    # res = supabase.table("embeddingsnew") \
-    # .select("*") \
-    # .eq("user_id", userId) \
-    # .eq("account_id", accountId) \
-    # .execute()
+    
     res = supabase.rpc(
         "match_embeddings",
         {
@@ -144,12 +131,41 @@ async def retrieve(request: Request):
 
             if err:
                 raise Exception(f"Supabase execute_sql RPC error: {err}")
-            answer = get_llm_answer(query, data)
+            result_rows = []
+            if data is None:
+                result_rows = []
+            elif isinstance(data, str):
+                try:
+                    result_rows = json.loads(data)
+                except Exception:
+                    # not JSON; keep raw string as single-item list
+                    result_rows = [data]
+            elif isinstance(data, (list, tuple)):
+                result_rows = list(data)
+            else:
+                # single object (jsonb), wrap into list
+                result_rows = [data]
+
+            # Build a simple context/summary from the returned rows (fallback)
+            try:
+                summary_text = build_context_from_records(result_rows)
+            except Exception:
+                # fallback simple serialization
+                summary_text = json.dumps(result_rows, default=str, indent=2)
+
+            # Ask the LLM to produce a user-friendly answer using the same interface as semantic route
+            answer = ""
+            try:
+                answer = get_llm_answer(query, result_rows)
+            except Exception as e:
+                print("LLM call failed for analytical route:", e)
+                answer = ""
 
             return {
                 "mode": "analytical",
                 "query": query,
                 "sql_query": sql_query,
+                "raw_result": result_rows,
                 "result": answer
             }
 
