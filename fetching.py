@@ -114,12 +114,6 @@ async def retrieve(request: Request):
         if intent == "analytical":
             sql_query = generate_sql_from_query(query, table_name="transactions")
 
-            # Ensure filters for user/account
-            # if "where" in sql_query.lower():
-            #     sql_query += f" AND userId = '{userId}' AND accountId = '{accountId}'"
-            # else:
-            #     sql_query += f" WHERE userId = '{userId}' AND accountId = '{accountId}'"
-
             print("Generated SQL:", sql_query)
 
             # Execute query
@@ -174,41 +168,6 @@ async def retrieve(request: Request):
 
     except Exception as e:
         return {"status": "❌ error", "error": str(e)}
-
-# @app.post("/retrieve")
-# async def retrieve(request: Request):
-#     """
-#     Input JSON: {"query": "text to search", "userId": "...", "accountId": "...", "top_k": 5}
-#     Returns top-K matched embeddings from Supabase filtered by user/account.
-#     """
-#     data = await request.json()
-#     query = data.get("query")
-#     userId = data.get("userId")
-#     accountId = data.get("accountId")
-#     top_k = data.get("top_k", 5)
-
-#     if not query or not userId or not accountId:
-#         return {"status": "❌ Missing required fields: query, userId, accountId"}
-
-#     try:
-#         # 1️⃣ Embed the query
-#         query_embedding = get_gemini_embedding(query, dim=384)
-
-#         # 2️⃣ Get top-K embeddings from Supabase
-#         top_docs = match_documents_online(query_embedding, userId, accountId, top_k=top_k)
-
-#         records= {
-#             "query": query,
-#             "userId": userId,
-#             "accountId": accountId,
-#             "top_k_results": top_docs
-#         }
-#         answer = get_llm_answer(query, top_docs)
-#         print("LLM Answer:", answer)
-#         return records
-
-    # except Exception as e:
-    #     return {"status": "❌ error", "error": str(e)}
 
 # -------------------------------
 # 6️⃣ Run locally
