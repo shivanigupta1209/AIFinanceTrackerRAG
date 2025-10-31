@@ -106,39 +106,46 @@ def build_context_from_records(records):
 
     return "\n".join(context_lines)
 
-
 def get_llm_answer(user_query, records):
     """
-    Generate LLM answer based on user query and records.
-    This prompt ensures Gemini uses the given data instead of refusing.
+    Generate an intelligent and context-aware answer based on the user's query and retrieved records.
+    Includes friendly responses for greetings and polite messages,
+    while responsibly handling financial advice.
     """
+
     context = build_context_from_records(records)
 
     prompt = f"""
-You are a helpful data analysis assistant.
+You are a friendly and responsible financial assistant.
 
-Below is a set of records retrieved from a financial transactions database.
-Use ONLY this data to answer the user's question.
+### Rules and Behaviour:
+1. If the user greets you or says something casual, respond naturally and warmly using the following tone examples:
+   - "Hello! How can I help you today?"
+   - "Hi there! What would you like to know?"
+   - "I am just a bot, but I’m functioning as expected! How can I assist you?"
+   - "You can ask me questions about NotebookLM, its features, or just say hello!"
+   - "Goodbye! Feel free to come back if you have more questions."
+   - "You're welcome! Let me know if there’s anything else I can help with."
 
-User question:
+2. If the user asks for **financial insights** or advice:
+   - Provide helpful and practical financial guidance based on the available data.
+   - Always include a polite disclaimer such as:
+     “Please verify this information or decision with a certified financial advisor or relevant authority.”
+
+3. If the query is analytical (e.g., about expenses, spending, totals):
+   - Use ONLY the database results provided below to compute or summarize the answer.
+   - Write your response in a clear, natural tone (e.g., “You spent ₹198.98 in September.”)
+   - Do not say "no data provided" unless explicitly stated in the context.
+
+---
+
+### User Query:
 {user_query}
 
-Database records:
+### Retrieved Records:
 {context}
 
-If the records show totals, averages, or other numeric summaries, 
-report them directly and clearly in natural language.
-Do not refuse to answer. Do not mention that you lack access to finances.
-Answer concisely and factually based on the given data.
-
-For standard queries like hi or hello, give the response as show below:
-'hello': 'Hello! How can I help you today?',
-'hi': 'Hi there! What would you like to know?',
-'how are you': 'I am just a bot, but I am functioning as expected! How can I assist you?',
-'help': 'You can ask me questions about NotebookLM, its features, or just say hello!',
-'bye': 'Goodbye! Feel free to come back if you have more questions.',
-'thanks': 'You\'re welcome! Let me know if there\'s anything else I can help with.',
-'thank you': 'You\'re welcome! Let me know if there\'s anything else I can help with.'
+Now, write a concise and human-like answer following the above rules.
 """
 
     model = genai.GenerativeModel("gemini-2.0-flash")
