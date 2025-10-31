@@ -130,6 +130,15 @@ If the records show totals, averages, or other numeric summaries,
 report them directly and clearly in natural language.
 Do not refuse to answer. Do not mention that you lack access to finances.
 Answer concisely and factually based on the given data.
+
+For standard queries like hi or hello, give the response as show below:
+'hello': 'Hello! How can I help you today?',
+'hi': 'Hi there! What would you like to know?',
+'how are you': 'I am just a bot, but I am functioning as expected! How can I assist you?',
+'help': 'You can ask me questions about NotebookLM, its features, or just say hello!',
+'bye': 'Goodbye! Feel free to come back if you have more questions.',
+'thanks': 'You\'re welcome! Let me know if there\'s anything else I can help with.',
+'thank you': 'You\'re welcome! Let me know if there\'s anything else I can help with.'
 """
 
     model = genai.GenerativeModel("gemini-2.0-flash")
