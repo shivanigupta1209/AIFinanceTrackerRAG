@@ -1,7 +1,6 @@
-# llmResponse.py
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai  # <-- change this line
+import google.generativeai as genai 
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -66,25 +65,6 @@ Respond with only one word: analytical OR semantic.
         return "analytical"
     return "semantic"
 
-
-# def build_context_from_records(records):
-#     """
-#     Build a context string from the list of records fetched from the DB.
-#     Each record should have metadata with columns.
-#     """
-#     if not records:
-#         return "No relevant records found."
-    
-#     lines = ["RESPONSE:"]
-#     for rec in records:
-#         cols = rec.get("metadata", {}).get("columns", {})
-#         date = cols.get("date", "?")
-#         category = cols.get("category", "?")
-#         amount = cols.get("amount", "?")
-#         type_ = cols.get("type", "?")
-#         if type_ == "EXPENSE":
-#             lines.append(f"- {date}: {category}, ${amount}")
-#     return "\n".join(lines)
 def build_context_from_records(records):
     """
     Convert list of record dictionaries into a clean, readable text format for the LLM.
@@ -95,7 +75,6 @@ def build_context_from_records(records):
     if isinstance(records, dict):
         records = [records]
 
-    # Make a readable text version (like CSV-style)
     context_lines = []
     for i, rec in enumerate(records, 1):
         if isinstance(rec, dict):

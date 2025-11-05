@@ -5,11 +5,9 @@ from fastapi import FastAPI, Request
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import numpy as np
-from embeddingCreation import get_gemini_embedding  # your embedding function
+from embeddingCreation import get_gemini_embedding  
 from llmResponse import get_llm_answer, build_context_from_records, classify_query_intent, generate_sql_from_query  # your LLM function
-# -------------------------------
-# 1️⃣ Load environment variables
-# -------------------------------
+
 load_dotenv()
 SUPABASE_URL: str = os.getenv("SUPABASE_URL")
 SUPABASE_KEY: str = os.getenv("SUPABASE_KEY")
@@ -17,35 +15,17 @@ SUPABASE_KEY: str = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Supabase credentials not found in .env")
 
-# -------------------------------
-# 2️⃣ Initialize Supabase client
-# -------------------------------
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# -------------------------------
-# 3️⃣ Initialize FastAPI
-# -------------------------------
 app = FastAPI(title="RAG Retrieval API")
 
-# -------------------------------
-# 4️⃣ Helper function: match_documents_online
-# -------------------------------
-
-# res = supabase.table("embeddingsnew") \
-#     .select("*") \
-#     .eq("user_id", userId) \
-#     .eq("account_id", accountId) \
-#     .execute()
 def _sanitize_sql(sql: str) -> str:
     """Remove markdown fences, language tags, trailing semicolon and whitespace."""
     if not sql:
         return ""
     s = sql.strip()
-    # remove triple-backtick fences and optional language tag
     s = s.replace("```sql", "").replace("```", "")
-    # remove any leading/trailing backticks left over
     s = s.strip("` \n\r\t")
-    # remove trailing semicolon
     s = s.rstrip().rstrip(";")
     return s.strip()
 
@@ -54,7 +34,7 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
     Query Supabase (pgvector) for top-K embeddings matching query_embedding,
     filtered by userId and accountId.
     """
-    # Convert numpy array to pgvector-compatible string
+    # np array to pgvector list
     if isinstance(query_embedding, np.ndarray):
         query_embedding = query_embedding.tolist()
     emb_str = "[" + ",".join([str(x) for x in query_embedding]) + "]"
@@ -77,9 +57,7 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
     data = res.data
     return data
 
-# -------------------------------
-# 5️⃣ FastAPI endpoint
-# -------------------------------
+# FastAPI endpoint
 
 @app.post("/retrieve")
 async def retrieve(request: Request):
@@ -90,24 +68,22 @@ async def retrieve(request: Request):
     top_k = data.get("top_k", 5)
 
     if not query or not user_id or not account_id:
-        return {"status": "❌ Missing required fields: query, userId, accountId"}
+        return {"status": "Missing required fields: query, userId, accountId"}
 
     try:
-        # Step 0️⃣: Let Gemini classify the intent
+        
         intent = classify_query_intent(query)
         print(f"Detected intent: {intent}")
 
-        # Step 1️⃣: Analytical route
+        
         if intent == "analytical":
             sql_query = generate_sql_from_query(query, table_name="transactions")
 
             print("Generated SQL:", sql_query)
 
-            # Execute query
-            #sql_query = sql_query.strip().rstrip(';')
             sql_query = _sanitize_sql(sql_query)
 
-            # debug print to verify cleaned SQL
+            
             print("Sanitized SQL:", sql_query)
             if not sql_query.lower().startswith("select"):
                 raise ValueError("Only SELECT queries are allowed.")
@@ -121,7 +97,7 @@ async def retrieve(request: Request):
             print("Calling execute_sql with payload:", payload)
             exec_res = supabase.rpc("execute_sql_wrapper", payload).execute()
 
-            # handle SingleAPIResponse object or plain dict
+            
             if isinstance(exec_res, dict):
                 err = exec_res.get("error")
                 data = exec_res.get("data")
@@ -139,22 +115,19 @@ async def retrieve(request: Request):
                 try:
                     result_rows = json.loads(data)
                 except Exception:
-                    # not JSON; keep raw string as single-item list
                     result_rows = [data]
             elif isinstance(data, (list, tuple)):
                 result_rows = list(data)
             else:
-                # single object (jsonb), wrap into list
                 result_rows = [data]
 
-            # Build a simple context/summary from the returned rows (fallback)
+            
             try:
                 summary_text = build_context_from_records(result_rows)
             except Exception:
-                # fallback simple serialization
+                
                 summary_text = json.dumps(result_rows, default=str, indent=2)
 
-            # Ask the LLM to produce a user-friendly answer using the same interface as semantic route
             answer = ""
             try:
                 answer = get_llm_answer(query, result_rows)
@@ -170,7 +143,7 @@ async def retrieve(request: Request):
                 "answer": answer
             }
 
-        # Step 2️⃣: Semantic route
+        #Semantic route
         query_embedding = get_gemini_embedding(query, dim=384)
         top_docs = match_documents_online(query_embedding, user_id, account_id, top_k=top_k)
         answer = get_llm_answer(query, top_docs)
@@ -185,11 +158,8 @@ async def retrieve(request: Request):
         }
 
     except Exception as e:
-        return {"status": "❌ error", "error": str(e)}
-
-# -------------------------------
-# 6️⃣ Run locally
-# # -----------------------------
+        return {"status": "error", "error": str(e)}
+#Fpr local testin
 # if __name__ == "__main__":
 #     import uvicorn
 #     uvicorn.run(app, host="0.0.0.0", port=8000)
