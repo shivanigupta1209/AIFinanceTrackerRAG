@@ -9,17 +9,13 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 def generate_sql_from_query(user_query, table_name="transactions"):
-    """
-    Use Gemini to translate natural language into SQL.
-    We'll pass schema context so the model generates valid Supabase SQL.
-    """
-    schema_hint = """
+   schema_hint = """
 You are generating SQL for the following PostgreSQL table:
 
 Table: transactions
 Columns:
 - id (text)
-- type (TransactionType ENUM): 'EXPENSE', 'INCOME'
+- type (TransactionType ENUM)- 'INCOME' or 'EXPENSE'
 - amount (numeric)
 - description (text)
 - date (timestamp)
@@ -35,35 +31,68 @@ Columns:
 - createdAt (timestamp)
 - updatedAt (timestamp)
 
-Important Rules:
+IMPORTANT RULES:
 1. Generate ONLY ONE SQL SELECT query.
-2. Do NOT include semicolons.
-3. Do NOT add userId or accountId filters. These will be added later.
-4. Use ONLY the columns listed above. Do NOT invent new fields.
-5. Use valid PostgreSQL syntax.
-6. Use ILIKE for text matching when needed.
-7. For date-based logic:
-   - Use date_trunc('month', date)
-   - Use CURRENT_DATE or NOW() as needed
-8. For sums or totals, alias appropriately:
-   - SUM(amount) AS total_amount
-9. For category search: category ILIKE '%keyword%'
-10. For types: use type = 'EXPENSE' or type = 'INCOME' depending on user intent.
+2. Do NOT output semicolons.
+3. Do NOT include userId or accountId filters. They will be added automatically by the backend.
+4. Use ONLY the columns listed above. Do NOT invent columns.
+5. Use valid PostgreSQL syntax only.
+6. Use ILIKE for text/category matching.
+7. For EXPENSE queries, assume type = 'EXPENSE' unless the user explicitly asks otherwise.
+8. For category search: category ILIKE '%keyword%'.
+9. For timestamp/date logic, follow these rules:
 
-Example:
+   • If the user asks for a specific date:
+       Use a date range:
+       date >= 'YYYY-MM-DD'
+       AND date < 'YYYY-MM-DD'::date + INTERVAL '1 day'
+
+   • If the user asks for a specific month (e.g., "September 2024"):
+       Use:
+       date >= 'YYYY-09-01'
+       AND date <  'YYYY-10-01'
+
+   • If the user asks for a month WITHOUT specifying year:
+       Use:
+       EXTRACT(MONTH FROM date) = <month_number>
+
+   • If the user asks for "this month":
+       Use:
+       date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
+
+10. For totals, alias properly:
+    SUM(amount) AS total_spent
+    SUM(amount) AS total_income
+    etc.
+
+11. When asked about "how much was spent", assume:
+    type = 'EXPENSE'.
+
+EXAMPLES:
+
+Example 1:
 Q: "How much did I spend this month on groceries?"
-→ SELECT SUM(amount) AS total_amount
-  FROM transactions
-  WHERE type = 'EXPENSE'
-    AND category ILIKE '%groceries%'
-    AND date_trunc('month', date) = date_trunc('month', CURRENT_DATE);
-
-Example:
-"How much money was spent in September?"
 → SELECT SUM(amount) AS total_spent
     FROM transactions
     WHERE type = 'EXPENSE'
-      AND EXTRACT(MONTH FROM date) = 9;
+      AND category ILIKE '%groceries%'
+      AND date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
+
+Example 2:
+Q: "How much money was spent in September?"
+→ SELECT SUM(amount) AS total_spent
+    FROM transactions
+    WHERE type = 'EXPENSE'
+      AND EXTRACT(MONTH FROM date) = 9
+
+Example 3:
+Q: "Show my expenses on 2025-09-27"
+→ SELECT *
+    FROM transactions
+    WHERE type = 'EXPENSE'
+      AND date >= '2025-09-27'
+      AND date < '2025-09-28'
+
 """
 
 prompt = f"""
@@ -72,11 +101,10 @@ You are an expert AI that converts natural language into SQL.
 User question: "{user_query}"
 
 Using the schema and rules below, return ONLY a valid SQL SELECT query.
-Include no explanation, no commentary, and no extra text.
+Provide no explanations or extra text.
 
 {schema_hint}
 """
-
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
