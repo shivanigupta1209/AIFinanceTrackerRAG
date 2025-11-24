@@ -84,21 +84,21 @@ def build_context_from_records(records):
         context_lines.append(f"Record {i}: {line}")
 
     return "\n".join(context_lines)
-converation_history = [] 
+conversation_history = [] 
 def get_llm_answer(user_query, records):
-    global converation_history
+    global conversation_history
     """
     Generate an intelligent and context-aware answer based on the user's query and retrieved records.
     Includes friendly responses for greetings and polite messages,
     while responsibly handling financial advice.
     """
-    trimmed_history = converation_history[-5:] 
+    trimmed_history = conversation_history[-5:] 
     context = build_context_from_records(records)
 
     prompt = f"""
     Conversation History(last 5 exchanges):
     {trimmed_history}
-    
+
     You are a helpful and precise financial assistant. You MUST answer using ONLY the records provided below.
     Never say "I don't have access to data". If required, politely ask the user to clarify their question.
 
