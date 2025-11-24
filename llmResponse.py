@@ -105,6 +105,7 @@ def get_llm_answer(user_query, records):
     Your responsibilities:
     1. **Greet normally** to casual messages (“hello”, “how are you”, etc.)
     2. **Analytical reasoning**:
+    - Answer questions about totals, sums, averages, counts, and filters.
     - If the question involves comparing time periods, detect which records belong to each period.
     - Compute totals per category, per month, per account, or per merchant.
     - Identify trends: increases, decreases, anomalies, or unusually high spending.
