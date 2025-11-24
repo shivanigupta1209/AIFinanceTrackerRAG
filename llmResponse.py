@@ -9,7 +9,7 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 def generate_sql_from_query(user_query, table_name="transactions"):
-   schema_hint = """
+    schema_hint = """
 You are generating SQL for the following PostgreSQL table:
 
 Table: transactions
