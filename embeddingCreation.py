@@ -45,6 +45,15 @@ def get_gemini_embedding(text, dim=384):
 # Function to insert embeddings into Supabase
 def embed_and_insert(source_table, row, text):
     try:
+        exists = supabase.table("embeddingsnew")\
+            .select("id")\
+            .eq("source_id", row["id"])\
+            .execute()
+
+        if exists.data:
+            print(f"Embedding already exists for {source_table} id {row['id']}, skipping.")
+            return
+            
         emb = get_gemini_embedding(text, dim=384)
         if not emb:
             print(f"Skipped embedding for {source_table} id {row['id']}")

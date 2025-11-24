@@ -14,28 +14,69 @@ def generate_sql_from_query(user_query, table_name="transactions"):
     We'll pass schema context so the model generates valid Supabase SQL.
     """
     schema_hint = """
-Table: transactions
-Columns: id, date, type, amount, status, userId, category, accountId
-Example:
-'how much did I spend this month on groceries?'
-→ SELECT SUM(amount) AS total_spent
-  FROM transactions
-  WHERE type = 'EXPENSE' AND category ILIKE '%groceries%'
-    AND date_trunc('month', date) = date_trunc('month', CURRENT_DATE);
-    """
+You are generating SQL for the following PostgreSQL table:
 
-    prompt = f"""
-You are an expert SQL translator.
-Given the user's question and the schema below,
-generate a single valid SQL query (PostgreSQL syntax) that answers it.
-Generate exactly one valid SQL SELECT query (no semicolons, no multiple statements).
-The query will be wrapped and filtered by user/account automatically — do not add userId or accountId filters yourself.
+Table: transactions
+Columns:
+- id (text)
+- type (TransactionType ENUM): 'EXPENSE', 'INCOME'
+- amount (numeric)
+- description (text)
+- date (timestamp)
+- category (text)
+- receiptUrl (text)
+- isRecurring (boolean)
+- recurringInterval (RecurringInterval ENUM)
+- nextRecurringDate (timestamp)
+- lastProcessed (timestamp)
+- status (TransactionStatus ENUM)
+- userId (text)
+- accountId (text)
+- createdAt (timestamp)
+- updatedAt (timestamp)
+
+Important Rules:
+1. Generate ONLY ONE SQL SELECT query.
+2. Do NOT include semicolons.
+3. Do NOT add userId or accountId filters. These will be added later.
+4. Use ONLY the columns listed above. Do NOT invent new fields.
+5. Use valid PostgreSQL syntax.
+6. Use ILIKE for text matching when needed.
+7. For date-based logic:
+   - Use date_trunc('month', date)
+   - Use CURRENT_DATE or NOW() as needed
+8. For sums or totals, alias appropriately:
+   - SUM(amount) AS total_amount
+9. For category search: category ILIKE '%keyword%'
+10. For types: use type = 'EXPENSE' or type = 'INCOME' depending on user intent.
+
+Example:
+Q: "How much did I spend this month on groceries?"
+→ SELECT SUM(amount) AS total_amount
+  FROM transactions
+  WHERE type = 'EXPENSE'
+    AND category ILIKE '%groceries%'
+    AND date_trunc('month', date) = date_trunc('month', CURRENT_DATE);
+
+Example:
+"How much money was spent in September?"
+→ SELECT SUM(amount) AS total_spent
+    FROM transactions
+    WHERE type = 'EXPENSE'
+      AND EXTRACT(MONTH FROM date) = 9;
+"""
+
+prompt = f"""
+You are an expert AI that converts natural language into SQL.
 
 User question: "{user_query}"
-{schema_hint}
 
-Return only the SQL query (no explanation).
+Using the schema and rules below, return ONLY a valid SQL SELECT query.
+Include no explanation, no commentary, and no extra text.
+
+{schema_hint}
 """
+
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
