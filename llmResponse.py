@@ -42,27 +42,27 @@ Return only the SQL query (no explanation).
     return response.text.strip()
 
 def classify_query_intent(user_query: str) -> str:
-    """
-    Use Gemini to classify the intent of a query as either:
-    - 'analytical'  (requires SQL operations like sum, count, average, filter)
-    - 'semantic'    (textual lookup, summarization, natural info retrieval)
-    """
-    prompt = f"""
-Classify the user's intent into one of two categories:
-1. "analytical" → questions involving totals, counts, averages, date ranges, numeric filters, or SQL-like operations.
-2. "semantic" → questions asking for explanations, text summaries, or specific transaction lookups.
+    query = user_query.lower()
 
-User query: "{user_query}"
+    # Keywords that indicate semantic comparison reasoning,
+    # but still should go to RAG (not SQL)
+    comparative_triggers = [
+        "compare", "difference", "versus", "vs",
+        "increase", "decrease", "why did", "most", "least",
+        "higher", "lower", "trend"
+    ]
 
-Respond with only one word: analytical OR semantic.
-"""
+    analytical_keywords = [
+        "total", "sum", "average", "count", "how much",
+        "spent on", "per month", "per day", "filter",
+        "greater than", "less than"
+    ]
 
-    model = genai.GenerativeModel("gemini-2.0-flash")
-    response = model.generate_content(prompt)
-    intent = response.text.strip().lower()
-
-    if "analytical" in intent:
+    # If clearly analytical → return analytical
+    if any(k in query for k in analytical_keywords):
         return "analytical"
+
+    # Comparative or semantic → return semantic
     return "semantic"
 
 def build_context_from_records(records):
@@ -84,50 +84,64 @@ def build_context_from_records(records):
         context_lines.append(f"Record {i}: {line}")
 
     return "\n".join(context_lines)
-
+converation_history = [] 
 def get_llm_answer(user_query, records):
+    global converation_history
     """
     Generate an intelligent and context-aware answer based on the user's query and retrieved records.
     Includes friendly responses for greetings and polite messages,
     while responsibly handling financial advice.
     """
-
+    trimmed_history = converation_history[-5:] 
     context = build_context_from_records(records)
 
     prompt = f"""
-You are a friendly and responsible financial assistant.
+    Conversation History(last 5 exchanges):
+    {trimmed_history}
+    
+    You are a helpful and precise financial assistant. You MUST answer using ONLY the records provided below.
+    Never say "I don't have access to data". If required, politely ask the user to clarify their question.
 
-### Rules and Behaviour:
-1. If the user greets you or says something casual, respond naturally and warmly using the following tone examples:
-   - "Hello! How can I help you today?"
-   - "Hi there! What would you like to know?"
-   - "I am just a bot, but I’m functioning as expected! How can I assist you?"
-   - "You can ask me questions about NotebookLM, its features, or just say hello!"
-   - "Goodbye! Feel free to come back if you have more questions."
-   - "You're welcome! Let me know if there’s anything else I can help with."
+    Your responsibilities:
+    1. **Greet normally** to casual messages (“hello”, “how are you”, etc.)
+    2. **Analytical reasoning**:
+    - If the question involves comparing time periods, detect which records belong to each period.
+    - Compute totals per category, per month, per account, or per merchant.
+    - Identify trends: increases, decreases, anomalies, or unusually high spending.
+    - Identify “top spending categories” by summing amounts.
+    - For “why did my spending increase?”, analyze differences and explain the main contributing categories.
 
-2. If the user asks for **financial insights** or advice:
-   - Provide helpful and practical financial guidance based on the available data.
-   - Always include a polite disclaimer such as:
-     “Please verify this information or decision with a certified financial advisor or relevant authority.”
+    3. **Semantic reasoning**:
+    - Summarize the pattern visible in the records.
+    - Provide insights based on spending descriptions and categories.
 
-3. If the query is analytical (e.g., about expenses, spending, totals):
-   - Use ONLY the database results provided below to compute or summarize the answer.
-   - Write your response in a clear, natural tone (e.g., “You spent ₹198.98 in September.”)
-   - Do not say "no data provided" unless explicitly stated in the context.
-   - NEVER say  “Please verify this information or decision with a certified financial advisor or relevant authority.”
+    4. **Tone & Safety**:
+    - Keep the tone natural, warm, and clear.
+    - DO NOT give financial advice like investment instructions.
+    - DO NOT use disclaimers unless the user asks for actual financial recommendations.
 
----
+    5. **If context is insufficient**:
+    - NEVER say "I have no data".
+    - Instead say: “Could you clarify the month or category you’re referring to?” or "Could you please clarify your question?".
 
-### User Query:
-{user_query}
+    ---
 
-### Retrieved Records:
-{context}
+    ### User Query:
+    {user_query}
 
-Now, write a concise and human-like answer following the above rules.
-"""
+    ### Retrieved Records:
+    {context}
+
+    Now generate the best possible answer using only the details in these records.
+    If the question is comparative, compute the necessary totals and clearly explain the reasoning.
+    """
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
-    return response.text.strip() if hasattr(response, "text") else str(response)
+    #return response.text.strip() if hasattr(response, "text") else str(response)
+    answer = response.text.strip() if hasattr(response, "text") else str(response)
+
+    # for conversation memory
+    conversation_history.append({"user": user_query, "assistant": answer})
+
+    return answer
