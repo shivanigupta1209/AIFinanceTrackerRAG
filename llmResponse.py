@@ -95,16 +95,17 @@ Q: "Show my expenses on 2025-09-27"
 
 """
 
-prompt = f"""
-You are an expert AI that converts natural language into SQL.
+    prompt = f"""
+    You are an expert AI that converts natural language into SQL.
 
-User question: "{user_query}"
+    User question: "{user_query}"
 
-Using the schema and rules below, return ONLY a valid SQL SELECT query.
-Provide no explanations or extra text.
+    Using the schema and rules below, return ONLY a valid SQL SELECT query.
+    Provide no explanations or extra text.
 
-{schema_hint}
-"""
+    {schema_hint}
+    """
+
 
     model = genai.GenerativeModel("gemini-2.0-flash")
     response = model.generate_content(prompt)
