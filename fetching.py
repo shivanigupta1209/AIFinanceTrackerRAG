@@ -64,6 +64,16 @@ def semantic_period_fetch(query: str, user_id: str, account_id: str):
     Detect periods like 'September', 'October', 'last month', etc.
     Fetch ALL records for those periods instead of using vector embeddings.
     """
+    userid = user_id
+    accountid = account_id
+    # payload = {
+    #    "query": sql_query,
+    #    "user_id": userid,
+    #    "account_id": accountid
+    # }
+    # print("Calling execute_sql with payload:", payload)
+    # exec_res = supabase.rpc("execute_sql_wrapper", payload).execute()
+
 
     text = query.lower()
 
@@ -81,19 +91,20 @@ def semantic_period_fetch(query: str, user_id: str, account_id: str):
     if months_detected:
         for m in months_detected:
             month_num = month_map[m]
+                #   AND "userId" = '{userid}'
+                #   AND "accountId" = '{accountid}'
             sql = f"""
                 SELECT *
                 FROM transactions
                 WHERE EXTRACT(MONTH FROM date) = {month_num}
-                  AND "userId" = '{user_id}'
-                  AND "accountId" = '{account_id}'
                 ORDER BY date;
             """
-            res = supabase.rpc("execute_sql_wrapper", {
+            payload = {
                 "query": sql,
-                "user_id": user_id,
-                "account_id": account_id
-            }).execute()
+                "user_id": userid,
+                "account_id": accountid
+            }
+            res = supabase.rpc("execute_sql_wrapper", payload).execute()
 
             if res.data:
                 if isinstance(res.data, str):
@@ -110,15 +121,16 @@ def semantic_period_fetch(query: str, user_id: str, account_id: str):
             SELECT *
             FROM transactions
             WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
-              AND "userId" = '{user_id}'
-              AND "accountId" = '{account_id}'
             ORDER BY date;
         """
-        res = supabase.rpc("execute_sql_wrapper", {
+        # AND "userId" = '{user_id}'
+        #       AND "accountId" = '{account_id}'
+        payload = {
             "query": sql,
-            "user_id": user_id,
-            "account_id": account_id
-        }).execute()
+            "user_id": userid,
+            "account_id": accountid
+        }
+        res = supabase.rpc("execute_sql_wrapper", payload).execute()
 
         return json.loads(res.data) if isinstance(res.data, str) else res.data
 
@@ -209,7 +221,9 @@ async def retrieve(request: Request):
                 "answer": answer
             }
         else:
-            period_results = semantic_period_fetch(query, user_id, account_id)
+            userid = user_id
+            accountid = account_id
+            period_results = semantic_period_fetch(query, userid, accountid)
 
             # If periods detected → skip vector search entirely
             if period_results is not None:
