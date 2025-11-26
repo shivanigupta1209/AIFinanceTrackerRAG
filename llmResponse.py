@@ -195,6 +195,13 @@ def get_llm_answer(user_query, records):
     - NEVER say "I have no data".
     - Instead say: “Could you clarify the month or category you’re referring to?” or "Could you please clarify your question?".
 
+    Example query structure:
+    Q: "How much money was spent in September?"
+    → SELECT SUM(amount) AS total_spent
+        FROM transactions
+        WHERE type = 'EXPENSE'
+        AND EXTRACT(MONTH FROM date) = 9
+    Therefore, total_spent is $X based on the records provided.
     ---
 
     ### User Query:
