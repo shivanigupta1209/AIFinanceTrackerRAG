@@ -155,7 +155,7 @@ def classify_query_intent(user_query: str) -> str:
     ]
 
     # If clearly analytical → return analytical
-    if any(k in query for k in analytical_keywords or comparative_triggers):
+    if any(k in query for k in (analytical_keywords + comparative_triggers)):
         return "analytical"
 
     # Comparative or semantic → return semantic
