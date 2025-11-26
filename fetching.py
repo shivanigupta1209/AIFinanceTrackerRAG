@@ -300,21 +300,21 @@ async def retrieve(request: Request):
                 "answer": answer
             }
         else:
-            userid = user_id
-            accountid = account_id
-            period_results = semantic_period_fetch(query, userid, accountid)
+            # userid = user_id
+            # accountid = account_id
+            # period_results = semantic_period_fetch(query, userid, accountid)
 
-            # If periods detected → skip vector search entirely
-            if period_results:
-                # Now give these full-month records to LLM
-                print("detected intent: semantic-intent")
-                answer = get_llm_answer(query, period_results)
-                return {
-                    "mode": "semantic-period",
-                    "query": query,
-                    "records_used": period_results,
-                    "answer": answer
-                }
+            # # If periods detected → skip vector search entirely
+            # if period_results:
+            #     # Now give these full-month records to LLM
+            #     print("detected intent: semantic-intent")
+            #     answer = get_llm_answer(query, period_results)
+            #     return {
+            #         "mode": "semantic-period",
+            #         "query": query,
+            #         "records_used": period_results,
+            #         "answer": answer
+            #     }
 
             #Semantic route
             query_embedding = get_gemini_embedding(query, dim=384)
@@ -333,6 +333,6 @@ async def retrieve(request: Request):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 #Fpr local testin
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
