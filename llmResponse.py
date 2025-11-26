@@ -68,6 +68,25 @@ IMPORTANT RULES:
 11. When asked about "how much was spent", assume:
     type = 'EXPENSE'.
 
+12. If the query involves comparison, differences, trends, ranking, “why”, or any comparative trigger listed below, 
+    DO NOT attempt to write a comparative SQL query. 
+    Instead, return a broad SELECT * query so the LLM can analyze the time periods itself.
+
+    Comparative triggers include:
+      "compare", "difference", "versus", "vs",
+      "increase", "decrease", "why did", "most", "least",
+      "higher", "lower", "trend"
+
+    Examples:
+    Q: "Why did my spending increase in September compared to October?"
+    → SELECT * FROM transactions ORDER BY date DESC
+
+    Q: "What category did I spend the most money on last month?"
+    → SELECT * FROM transactions ORDER BY date DESC
+
+    Q: "Compare my grocery spending this month vs last month"
+    → SELECT * FROM transactions WHERE category ILIKE '%grocery%' ORDER BY date DESC
+
 EXAMPLES:
 
 Example 1:
@@ -92,6 +111,13 @@ Q: "Show my expenses on 2025-09-27"
     WHERE type = 'EXPENSE'
       AND date >= '2025-09-27'
       AND date < '2025-09-28'
+
+Example 4:
+Q: "Why did my spending increase in September compared to October?"
+→ SELECT *
+    FROM transactions
+    ORDER BY date DESC
+
 
 """
 
@@ -129,7 +155,7 @@ def classify_query_intent(user_query: str) -> str:
     ]
 
     # If clearly analytical → return analytical
-    if any(k in query for k in analytical_keywords):
+    if any(k in query for k in analytical_keywords or comparative_triggers):
         return "analytical"
 
     # Comparative or semantic → return semantic

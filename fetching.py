@@ -57,85 +57,164 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
     data = res.data
     return data
 
-# FastAPI endpoint
-# ------------ FIX: PERIOD-AWARE SEMANTIC FETCHING ------------
-def semantic_period_fetch(query: str, user_id: str, account_id: str):
+# # FastAPI endpoint
+# # ------------ FIX: PERIOD-AWARE SEMANTIC FETCHING ------------
+# def semantic_period_fetch(query: str, user_id: str, account_id: str):
+#     """
+#     Detect periods like 'September', 'October', 'last month', etc.
+#     Fetch ALL records for those periods instead of using vector embeddings.
+#     """
+#     userid = user_id
+#     accountid = account_id
+#     # payload = {
+#     #    "query": sql_query,
+#     #    "user_id": userid,
+#     #    "account_id": accountid
+#     # }
+#     # print("Calling execute_sql with payload:", payload)
+#     # exec_res = supabase.rpc("execute_sql_wrapper", payload).execute()
+
+
+#     text = query.lower()
+
+#     # (1) Detect specific months
+#     month_map = {
+#         "january": 1, "february": 2, "march": 3, "april": 4,
+#         "may": 5, "june": 6, "july": 7, "august": 8,
+#         "september": 9, "october": 10, "november": 11, "december": 12
+#     }
+
+#     months_detected = [m for m in month_map if m in text]
+
+#     records = []
+
+#     if months_detected:
+#         for m in months_detected:
+#             month_num = month_map[m]
+#                 #   AND "userId" = '{userid}'
+#                 #   AND "accountId" = '{accountid}'
+#             sql = f"""
+#                 SELECT *
+#                 FROM transactions
+#                 WHERE EXTRACT(MONTH FROM date) = {month_num}
+#                 ORDER BY date;
+#             """
+#             payload = {
+#                 "query": sql,
+#                 "user_id": userid,
+#                 "account_id": accountid
+#             }
+#             res = supabase.rpc("execute_sql_wrapper", payload).execute()
+
+#             if res.data:
+#                 if isinstance(res.data, str):
+#                     rows = json.loads(res.data)
+#                 else:
+#                     rows = res.data
+#                 records.extend(rows)
+
+#         return records
+
+#     # (2) If “this month”
+#     if "this month" in text:
+#         sql = """
+#             SELECT *
+#             FROM transactions
+#             WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
+#             ORDER BY date;
+#         """
+#         # AND "userId" = '{user_id}'
+#         #       AND "accountId" = '{account_id}'
+#         payload = {
+#             "query": sql,
+#             "user_id": userid,
+#             "account_id": accountid
+#         }
+#         res = supabase.rpc("execute_sql_wrapper", payload).execute()
+
+#         return json.loads(res.data) if isinstance(res.data, str) else res.data
+
+#     # fallback → normal vector-based semantic search
+#     return None
+def generate_period_sql(user_query):
     """
-    Detect periods like 'September', 'October', 'last month', etc.
-    Fetch ALL records for those periods instead of using vector embeddings.
+    Uses Gemini to generate SQL for month-based or period-based semantic queries.
+    ALWAYS returns ONE SQL SELECT * query that retrieves ALL relevant raw rows.
     """
+
+    period_schema_hint = """
+You are generating SQL for retrieving RAW transaction rows for time-based queries.
+
+Table: transactions
+
+RULES:
+1. ALWAYS return: SELECT * FROM transactions ...
+2. NEVER return aggregates like SUM, COUNT, AVG.
+3. NEVER include userId or accountId filters.
+4. Use PostgreSQL syntax only.
+
+5. If the query mentions specific months such as:
+   "September and October"
+   "compare September and October"
+   → Detect both months and RETURN ONE SQL QUERY using:
+     EXTRACT(MONTH FROM date) IN (<month_numbers>)
+
+   Example:
+   SELECT * FROM transactions
+   WHERE EXTRACT(MONTH FROM date) IN (9, 10)
+   ORDER BY date;
+
+6. If the query mentions only one month:
+   SELECT * FROM transactions WHERE EXTRACT(MONTH FROM date) = <month_number>
+
+7. If the query says “this month”:
+   date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
+
+8. If the query says “last month”:
+   date_trunc('month', date) = date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+
+9. Output ONLY a SQL query string. No JSON. No explanation.
+"""
+
+    prompt = f"""
+You are an expert SQL generator.
+
+User query: "{user_query}"
+
+Generate exactly ONE SQL SELECT query following the rules below:
+{period_schema_hint}
+"""
+
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
+def semantic_period_fetch(query, user_id, account_id):
+    sql = generate_period_sql(query)
+
+    if not sql:
+        return None  # Not a period-based query
     userid = user_id
     accountid = account_id
-    # payload = {
-    #    "query": sql_query,
-    #    "user_id": userid,
-    #    "account_id": accountid
-    # }
-    # print("Calling execute_sql with payload:", payload)
-    # exec_res = supabase.rpc("execute_sql_wrapper", payload).execute()
-
-
-    text = query.lower()
-
-    # (1) Detect specific months
-    month_map = {
-        "january": 1, "february": 2, "march": 3, "april": 4,
-        "may": 5, "june": 6, "july": 7, "august": 8,
-        "september": 9, "october": 10, "november": 11, "december": 12
+    payload = {
+        "query": sql,
+        "user_id": userid,
+        "account_id": accountid
     }
+    # Run SQL using your RPC wrapper (which auto-adds userId/accountId filters)
+    res = supabase.rpc("execute_sql_wrapper",payload).execute()
 
-    months_detected = [m for m in month_map if m in text]
+    rows = json.loads(res.data) if isinstance(res.data, str) else res.data
 
-    records = []
+    # Tag rows with month number for LLM clarity
+    for r in rows:
+        try:
+            month_num = int(r["date"][5:7])  # extract month from string timestamp
+            r["__month"] = month_num
+        except:
+            pass
 
-    if months_detected:
-        for m in months_detected:
-            month_num = month_map[m]
-                #   AND "userId" = '{userid}'
-                #   AND "accountId" = '{accountid}'
-            sql = f"""
-                SELECT *
-                FROM transactions
-                WHERE EXTRACT(MONTH FROM date) = {month_num}
-                ORDER BY date;
-            """
-            payload = {
-                "query": sql,
-                "user_id": userid,
-                "account_id": accountid
-            }
-            res = supabase.rpc("execute_sql_wrapper", payload).execute()
-
-            if res.data:
-                if isinstance(res.data, str):
-                    rows = json.loads(res.data)
-                else:
-                    rows = res.data
-                records.extend(rows)
-
-        return records
-
-    # (2) If “this month”
-    if "this month" in text:
-        sql = """
-            SELECT *
-            FROM transactions
-            WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
-            ORDER BY date;
-        """
-        # AND "userId" = '{user_id}'
-        #       AND "accountId" = '{account_id}'
-        payload = {
-            "query": sql,
-            "user_id": userid,
-            "account_id": accountid
-        }
-        res = supabase.rpc("execute_sql_wrapper", payload).execute()
-
-        return json.loads(res.data) if isinstance(res.data, str) else res.data
-
-    # fallback → normal vector-based semantic search
-    return None
+    return rows
 
 @app.post("/retrieve")
 async def retrieve(request: Request):
@@ -226,8 +305,9 @@ async def retrieve(request: Request):
             period_results = semantic_period_fetch(query, userid, accountid)
 
             # If periods detected → skip vector search entirely
-            if period_results is not None:
+            if period_results:
                 # Now give these full-month records to LLM
+                print("detected intent: semantic-intent")
                 answer = get_llm_answer(query, period_results)
                 return {
                     "mode": "semantic-period",
@@ -253,6 +333,6 @@ async def retrieve(request: Request):
     except Exception as e:
         return {"status": "error", "error": str(e)}
 #Fpr local testin
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
