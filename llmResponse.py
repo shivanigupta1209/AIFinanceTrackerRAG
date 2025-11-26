@@ -170,6 +170,7 @@ def get_llm_answer(user_query, records):
     {trimmed_history}
 
     You are a helpful and precise financial assistant. You MUST answer using ONLY the records provided below.
+    Respond in plain text only. Do NOT use Markdown formatting, bullets, asterisks (*), dashes (-), plus signs (+), or code fences.
     Never say "I don't have access to data". If required, politely ask the user to clarify their question.
 
     Your responsibilities:

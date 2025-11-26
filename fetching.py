@@ -58,6 +58,72 @@ def match_documents_online(query_embedding, userId, accountId, top_k=5):
     return data
 
 # FastAPI endpoint
+# ------------ FIX: PERIOD-AWARE SEMANTIC FETCHING ------------
+def semantic_period_fetch(query: str, user_id: str, account_id: str):
+    """
+    Detect periods like 'September', 'October', 'last month', etc.
+    Fetch ALL records for those periods instead of using vector embeddings.
+    """
+
+    text = query.lower()
+
+    # (1) Detect specific months
+    month_map = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12
+    }
+
+    months_detected = [m for m in month_map if m in text]
+
+    records = []
+
+    if months_detected:
+        for m in months_detected:
+            month_num = month_map[m]
+            sql = f"""
+                SELECT *
+                FROM transactions
+                WHERE EXTRACT(MONTH FROM date) = {month_num}
+                  AND "userId" = '{user_id}'
+                  AND "accountId" = '{account_id}'
+                ORDER BY date;
+            """
+            res = supabase.rpc("execute_sql_wrapper", {
+                "query": sql,
+                "user_id": user_id,
+                "account_id": account_id
+            }).execute()
+
+            if res.data:
+                if isinstance(res.data, str):
+                    rows = json.loads(res.data)
+                else:
+                    rows = res.data
+                records.extend(rows)
+
+        return records
+
+    # (2) If “this month”
+    if "this month" in text:
+        sql = """
+            SELECT *
+            FROM transactions
+            WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)
+              AND "userId" = '{user_id}'
+              AND "accountId" = '{account_id}'
+            ORDER BY date;
+        """
+        res = supabase.rpc("execute_sql_wrapper", {
+            "query": sql,
+            "user_id": user_id,
+            "account_id": account_id
+        }).execute()
+
+        return json.loads(res.data) if isinstance(res.data, str) else res.data
+
+    # fallback → normal vector-based semantic search
+    return None
 
 @app.post("/retrieve")
 async def retrieve(request: Request):
@@ -142,20 +208,33 @@ async def retrieve(request: Request):
                 "raw_result": result_rows,
                 "answer": answer
             }
+        else:
+            period_results = semantic_period_fetch(query, user_id, account_id)
 
-        #Semantic route
-        query_embedding = get_gemini_embedding(query, dim=384)
-        top_docs = match_documents_online(query_embedding, user_id, account_id, top_k=top_k)
-        answer = get_llm_answer(query, top_docs)
+            # If periods detected → skip vector search entirely
+            if period_results is not None:
+                # Now give these full-month records to LLM
+                answer = get_llm_answer(query, period_results)
+                return {
+                    "mode": "semantic-period",
+                    "query": query,
+                    "records_used": period_results,
+                    "answer": answer
+                }
 
-        print("llm answer: \n", answer)
+            #Semantic route
+            query_embedding = get_gemini_embedding(query, dim=384)
+            top_docs = match_documents_online(query_embedding, user_id, account_id, top_k=top_k)
+            answer = get_llm_answer(query, top_docs)
 
-        return {
-            "mode": "semantic",
-            "query": query,
-            "answer": answer,
-            "top_k_results": top_docs
-        }
+            print("llm answer: \n", answer)
+
+            return {
+                "mode": "semantic",
+                "query": query,
+                "answer": answer,
+                "top_k_results": top_docs
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
