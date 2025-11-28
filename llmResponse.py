@@ -116,7 +116,6 @@ Example 4:
 Q: "Why did my spending increase in September compared to October?"
 → SELECT *
     FROM transactions
-    ORDER BY date DESC
 
 
 """
