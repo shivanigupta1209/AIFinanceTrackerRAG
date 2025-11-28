@@ -19,7 +19,7 @@ Columns:
 - amount (numeric)
 - description (text)
 - date (timestamp)
-- category (text)
+- category (text): food, housing, groceries, entertainment, utilities, transportation, healthcare, education, personal care, travel, gifts & donations, insurance, bills & fees, investments, other expenses
 - receiptUrl (text)
 - isRecurring (boolean)
 - recurringInterval (RecurringInterval ENUM)
@@ -79,13 +79,13 @@ IMPORTANT RULES:
 
     Examples:
     Q: "Why did my spending increase in September compared to October?"
-    → SELECT * FROM transactions ORDER BY date DESC
+    → SELECT * FROM transactions
 
     Q: "What category did I spend the most money on last month?"
-    → SELECT * FROM transactions ORDER BY date DESC
+    → SELECT * FROM transactions
 
     Q: "Compare my grocery spending this month vs last month"
-    → SELECT * FROM transactions WHERE category ILIKE '%grocery%' ORDER BY date DESC
+    → SELECT * FROM transactions WHERE category ILIKE '%grocery%' 
 
 EXAMPLES:
 
@@ -105,7 +105,7 @@ Q: "How much money was spent in September?"
       AND EXTRACT(MONTH FROM date) = 9
 
 Example 3:
-Q: "Show my expenses on 2025-09-27"
+Q: "Show my expenses on 2025-09-27 or what is the total amount of money spent on september 27 this year?"
 → SELECT *
     FROM transactions
     WHERE type = 'EXPENSE'
@@ -114,8 +114,14 @@ Q: "Show my expenses on 2025-09-27"
 
 Example 4:
 Q: "Why did my spending increase in September compared to October?"
-→ SELECT *
+→ SELECT * FROM transactions
+
+Example 5:
+Q: "how much did i spend on goa trip?"
+→ SELECT SUM(amount) AS total_spent
     FROM transactions
+    WHERE type = 'EXPENSE'
+      AND description ILIKE '%goa%'
 
 
 """
