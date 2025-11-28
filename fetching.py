@@ -284,7 +284,7 @@ async def retrieve(request: Request):
             except Exception:
                 
                 summary_text = json.dumps(result_rows, default=str, indent=2)
-
+            print(result_rows)
             answer = ""
             try:
                 answer = get_llm_answer(query, result_rows)
