@@ -290,6 +290,14 @@ YOUR SKILLS:
    Ask for clarification politely, such as:
    "Could you clarify the month or category you're referring to?"
 
+Example query structure:
+    Q: "How much money was spent in September?"
+    → SELECT SUM(amount) AS total_spent
+        FROM transactions
+        WHERE type = 'EXPENSE'
+        AND EXTRACT(MONTH FROM date) = 9
+    Therefore, total_spent is $X based on the records provided.
+    ---
 USER QUESTION:
 {user_query}
 

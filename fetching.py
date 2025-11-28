@@ -284,6 +284,7 @@ async def retrieve(request: Request):
             except Exception:
                 
                 summary_text = json.dumps(result_rows, default=str, indent=2)
+            print("SQL query result rows:", len(result_rows))
             print(result_rows)
             answer = ""
             try:
